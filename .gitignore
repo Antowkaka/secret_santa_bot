@@ -1,0 +1,9 @@
+# dependencies
+/node_modules
+# configs
+/src/config
+.env
+# local db
+/src/database
+# production
+/build
