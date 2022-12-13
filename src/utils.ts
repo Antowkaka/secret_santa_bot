@@ -4,7 +4,7 @@ export function createAllMembersCountDbFieldPath(chatId: number): string {
 	return `/${chatId}_all_members_count`;
 }
 
-export function createRegisteredMembersCountDbFieldPath(
+export function createRegisteredMembersDbFieldPath(
 	chatId: number,
 	appendArr?: boolean
 ): string {
