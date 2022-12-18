@@ -1,12 +1,17 @@
 import type { InlineKeyboardButton } from 'telegraf/types';
 import type { SceneSessionData } from "telegraf/typings/scenes";
 
-type User = {
-	id: string;
-	firstName: string;
-	lastName: string;
-	info?: string;
-}
+export type User = Partial<{
+	// process data
+	id: number;
+	groupChatId: number;
+	privateChatId: number;
+	// public data
+	fullName: string;
+	number: string;
+	city: string;
+	novaPoshtaNo: string;
+}>
 
 export type UserParticipation = Readonly<{
 	userId: number;
@@ -19,7 +24,8 @@ export type DbData = {
 
 export enum InlineActions {
 	PollYes = 'poll_yes',
-	PollNo = 'poll_no'
+	PollNo = 'poll_no',
+	Register = 'register',
 }
 
 export type RegisteredChats = {
@@ -29,6 +35,11 @@ export type RegisteredChats = {
 
 export type SceneContextWithChooseChatKeyboard = SceneSessionData & {
 	chooseChatKeyboard?: InlineKeyboardButton[][];
+}
+
+export type SceneContextWithUserInfo = SceneSessionData & {
+	stepsGenerator?: Generator<FillInfoStep>;
+	userInfo?: User;
 }
 
 // start -> 'Hello' + keyboard (available chats)
@@ -45,4 +56,40 @@ export enum ScenarioType {
 	RANDOMIZR_SCENE = 'randomizer_scene',
 	WAIT_OTHER_SCENE = 'wait_other_scene',
 	GOOD_BAY_SCENE = 'good_bay_scene'
+}
+
+export enum FillInfoStep {
+	FullName = 'first-step',
+	Number = 'second-step',
+	City = 'third-step',
+	NovaPoshtaNo = 'fourth-step',
+}
+
+export type UpdateUserInfoData = Readonly<{
+	field: keyof User;
+	// next step message
+	message: string;
+	last: boolean;
+}>;
+
+export type UserStateInfo = Readonly<{
+	userId: number;
+	userGroupChatId: number;
+	userPrivateChatId: number;
+}>;
+
+export const userInfoState = (
+	state: object
+): state is UserStateInfo => Object.hasOwn(state, 'userId')
+	&& Object.hasOwn(state, 'userGroupChatId')
+	&& Object.hasOwn(state, 'userPrivateChatId');
+
+export const isUserFullfield = (user: User): user is Required<User> => {
+	const allSettled: boolean[] = [];
+
+	for (const field of Object.keys(user)) {
+		allSettled.push(Object.hasOwn(user, field));
+	}
+
+	return allSettled.every(isExist => isExist);
 }

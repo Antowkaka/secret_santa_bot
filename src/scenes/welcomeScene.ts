@@ -21,7 +21,7 @@ welcomeScene.enter(async ctx => {
 	// we need to create the same keyboard for non-existed/non-participated users
 	ctx.scene.session.chooseChatKeyboard = chooseChatKeyboard;
 
-  ctx.reply(`<b>${messages.step_annotation_welcome}</b> ${messages.private_chat_welcome_choose_title}`, {
+  ctx.reply(messages.step_annotation_welcome, {
 		reply_markup: {
 			inline_keyboard: chooseChatKeyboard
 		},
@@ -30,7 +30,7 @@ welcomeScene.enter(async ctx => {
 });
 
 welcomeScene.on('callback_query', async ctx => {
-	const { data, from } = ctx.callbackQuery as CallbackQuery.DataQuery;
+	const { id, data, from, message } = ctx.callbackQuery as CallbackQuery.DataQuery;
 	const parsedChatId = parseInt(data);
 	const user: UserParticipation | undefined = await LocalDb.find(
 		createRegisteredMembersDbFieldPath(parsedChatId),
@@ -38,10 +38,16 @@ welcomeScene.on('callback_query', async ctx => {
 	);
 	const chooseKeyboard = ctx.scene.session.chooseChatKeyboard;
 
-	if (user) {
+	if (user && message) {
 		if (user.isParticipates) {
 			ctx.reply(messages.private_chat_fill_info_welcome, {
 				parse_mode: 'HTML',
+			});
+			ctx.telegram.answerCbQuery(id);
+			ctx.scene.enter(ScenarioType.FILL_INFO_SCENE, {
+				userId: from.id,
+				userGroupChatId: parsedChatId,
+				userPrivateChatId: message.chat.id,
 			});
 		} else {
 			ctx.reply(messages.private_chat_try_again_non_participant, {
@@ -63,6 +69,8 @@ welcomeScene.on('callback_query', async ctx => {
 			})
 		});
 	}
+
+	ctx.telegram.answerCbQuery(id);
 });
 
 export default welcomeScene;
