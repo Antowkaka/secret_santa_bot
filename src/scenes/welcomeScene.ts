@@ -4,7 +4,7 @@ import type { CallbackQuery, InlineKeyboardButton } from 'telegraf/types';
 import LocalDb from '../database/localDb';
 import { ScenarioType, RegisteredChats, UserParticipation, WelcomeSceneContext } from '../types';
 import { messages, env } from '../config/variables';
-import { createRegisteredMembersDbFieldPath } from '../utils';
+import { createParticipatedMembersDbFieldPath } from '../utils';
 
 const welcomeScene = new Scenes.BaseScene<WelcomeSceneContext>(ScenarioType.WELCOME_SCENE);
 
@@ -31,7 +31,7 @@ welcomeScene.on('callback_query', async ctx => {
 	const { id, data, from, message } = ctx.callbackQuery as CallbackQuery.DataQuery;
 	const parsedChatId = parseInt(data);
 	const user: UserParticipation | undefined = await LocalDb.find(
-		createRegisteredMembersDbFieldPath(parsedChatId),
+		createParticipatedMembersDbFieldPath(parsedChatId),
 		(user: UserParticipation) => user.userId === from.id
 	);
 	const chooseKeyboard = ctx.scene.session.chooseChatKeyboard;

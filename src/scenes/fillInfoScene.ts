@@ -1,13 +1,13 @@
 import { Scenes } from 'telegraf';
 import { message } from 'telegraf/filters';
 
-import LocalDb from '../database/localDb';
+import LocalDbService from '../database/localDbService';
 import { messages } from '../config/variables';
 import { register } from '../keyboard/buttons';
 import {
 	createStepsGenerator,
 	mapStepToUpdateData,
-	createRegisteredUsersInfoPath,
+	handleUsersRegistration,
 } from '../utils';
 import {
 	ScenarioType,
@@ -42,7 +42,6 @@ fillInfoScene.enter(ctx => {
 fillInfoScene.on(message('text'), ctx => {
 	const updateUserInfo = ctx.scene.session.stepsGenerator && ctx.scene.session.stepsGenerator.next();
 	const prevUserInfo = ctx.scene.session?.userInfo;
-	console.log('info: ', updateUserInfo);
 
 	if (updateUserInfo?.value && !updateUserInfo.done) {
 		const { field, message, last } = mapStepToUpdateData(updateUserInfo.value);
@@ -73,23 +72,29 @@ fillInfoScene.action(InlineActions.Register, async ctx => {
 
 	if (userInfo && isUserFullfield(userInfo)) {
 		const { groupChatId } = userInfo;
-		const usersInfoPath = createRegisteredUsersInfoPath(groupChatId);
+		const dbService = new LocalDbService(groupChatId);
 
-		const user: User | undefined = await LocalDb.find(
-			usersInfoPath,
-			(user: User) => user.id === userInfo.id,
-		);
+		const user: User | undefined = await dbService.getUserInfo(userInfo.id);
 
 		if (user) {
 			ctx.reply(messages.step_annotation_end_already_registered, {
 				parse_mode: 'HTML',
 			});
 		} else {
-			await LocalDb.push(createRegisteredUsersInfoPath(groupChatId, true), userInfo);
+			await dbService.setUserInfo(userInfo);
 
 			ctx.reply(messages.step_annotation_end_registered, {
 				parse_mode: 'HTML',
 			});
+
+			const allRegisteredUsers = await dbService.getRegistrations();
+			const allChatMembers = await dbService.getChatUsersCount();
+
+			const isAllRegistered = allRegisteredUsers.length === allChatMembers;
+
+			if (isAllRegistered) {
+				handleUsersRegistration(allRegisteredUsers, ctx);
+			}
 		}
 	}
 

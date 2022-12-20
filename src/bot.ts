@@ -19,7 +19,7 @@ stage.command('/exit', async ctx => {
 		console.log('leaving...');
 
 		const db = new LocalDbService(userInfoFromCb.userGroupChatId);
-		await db.removeUserFromDb(userInfoFromCb.userId);
+		await db.removeUserInfo(userInfoFromCb.userId);
 		ctx.scene.leave();
 	}
 });
@@ -42,17 +42,21 @@ bot.on('my_chat_member', async (ctx) => {
 			// set chat ID as database to local database
 			const chatCount = await ctx.telegram.getChatMembersCount(chat.id);
 			const excludeBotCount = chatCount - 1;
-			await localDbService.setChatToDb(chat.title, excludeBotCount);
+			if (excludeBotCount < 2) {
+				ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_unavailable}`);
+			} else {
+				await localDbService.setChatToDb(chat.title, excludeBotCount);
 
-			// send poll for users (users count - bot)
-			ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
-				reply_markup: {
-					inline_keyboard: [
-						[pollYes],
-						[pollNo],
-					]
-				}
-			});
+				// send poll for users (users count - bot)
+				ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
+					reply_markup: {
+						inline_keyboard: [
+							[pollYes],
+							[pollNo],
+						]
+					}
+				});
+			}
 		}
 
 		if (old_chat_member.user.id === ctx.botInfo.id
@@ -74,13 +78,13 @@ const pollHandler = async (
 		const { message: { message_id: msgId, chat: { id: chatId } }, from } = ctx.callbackQuery;
 		const dbService = new LocalDbService(chatId);
 		// something like reactive (after push - updates length)
-		const participatedUsers: UserParticipation[] = await dbService.getUsersParticipations();
+		const participatedUsers: UserParticipation[] = await dbService.getParticipations();
 		const isUserExist = participatedUsers.length > 0 && participatedUsers.find(({ userId }) => userId === from.id);
 		if (isUserExist) {
 			ctx.answerCbQuery(messages.registered_exist_notification);
 		} else {
 			// register user in db (as Secret Santa)
-			await dbService.setNewParticipation({
+			await dbService.setParticipation({
 				userId: from.id,
 				isParticipates: ctx.match[0] === InlineActions.PollYes,
 			});

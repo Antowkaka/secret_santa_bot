@@ -13,22 +13,22 @@ import {
 	isObjKey,
 } from './types';
 
-export function createAllMembersCountDbFieldPath(chatId: number): string {
-	return `/${chatId}_all_members_count`;
+export function createChatMembersCountDbFieldPath(chatId: number): string {
+	return `/${chatId}_chat_members_count`;
+}
+
+export function createParticipatedMembersDbFieldPath(
+	chatId: number,
+	appendArr?: boolean
+): string {
+	return `/${chatId}_participated_members${appendArr ? '[]' : ''}`;
 }
 
 export function createRegisteredMembersDbFieldPath(
 	chatId: number,
-	appendArr?: boolean
-): string {
-	return `/${chatId}_registered_members${appendArr ? '[]' : ''}`;
-}
-
-export function createRegisteredUsersInfoPath(
-	chatId: number,
 	appendArr?: boolean,
 ): string {
-	return `/${chatId}_members_info${appendArr ? '[]' : ''}`;
+	return `/${chatId}_registered_members${appendArr ? '[]' : ''}`;
 }
 
 export function incrementPollBtn(

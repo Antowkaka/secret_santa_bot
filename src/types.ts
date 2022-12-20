@@ -98,7 +98,7 @@ export const userInfoState = (
 	&& Object.hasOwn(state, 'userGroupChatId')
 	&& Object.hasOwn(state, 'userPrivateChatId');
 
-export const isUserFullfield = (user: User): user is Required<User> => {
+export const isUserFullfield = (user: User): user is UserFromDb => {
 	const allSettled: boolean[] = [];
 
 	for (const field of Object.keys(user)) {
