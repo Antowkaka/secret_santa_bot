@@ -4,6 +4,6 @@
 /src/config
 .env
 # local db
-/src/database
+/src/database/*.json
 # production
 /build
