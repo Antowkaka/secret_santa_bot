@@ -1,7 +1,17 @@
-import type {InlineKeyboardButton } from 'telegraf/types';
+import type { NarrowedContext } from 'telegraf';
+import type {InlineKeyboardButton, Update, CallbackQuery } from 'telegraf/types';
 
 import { fillInfoSteps, messages } from './config/variables';
-import { FillInfoStep, UpdateUserInfoData, UserFromDb, UserPairs } from './types';
+import {
+	FillInfoStep,
+	UpdateUserInfoData,
+	UserFromDb,
+	PublicUserInfo,
+	UserPairs,
+	FillInfoSceneContext,
+	assertNever,
+	isObjKey,
+} from './types';
 
 export function createAllMembersCountDbFieldPath(chatId: number): string {
 	return `/${chatId}_all_members_count`;
@@ -94,4 +104,75 @@ export function createPairs(users: UserFromDb[]): UserPairs {
 		pairs,
 		rest
 	};
+}
+
+export function mapDbFieldToMessageField(
+	dbField: keyof PublicUserInfo
+): string {
+	switch (dbField) {
+		case 'fullName':
+			return messages.db_to_message_field_name;
+		case 'number':
+			return messages.db_to_message_field_number;
+		case 'city':
+			return messages.db_to_message_field_city;
+		case 'novaPoshtaNo':
+			return messages.db_to_message_field_np_no;
+		default: assertNever(dbField);
+	}
+}
+
+export function parseUserInfoToMessage(userInfo: UserFromDb): string {
+	const { id, groupChatId, privateChatId, ...publicInfo } = userInfo;
+
+	const messagesRows = Object.entries(publicInfo).map<string>(([key, value]) =>
+		isObjKey<PublicUserInfo>(key, publicInfo)
+			? [mapDbFieldToMessageField(key), value].join(' ')
+			: ''
+	);
+
+	return messagesRows.filter(row => row !== '').join('\n');
+}
+
+export function handleUsersRegistration(
+	users: UserFromDb[],
+	ctx: NarrowedContext<FillInfoSceneContext & {match: RegExpExecArray;}, Update.CallbackQueryUpdate<CallbackQuery>>
+): void {
+	const { pairs, rest } = createPairs(users);
+
+	pairs.forEach(pair => {
+		const firstUserInfo = pair[0];
+		const secondUserInfo = pair[1];
+
+		if (firstUserInfo && secondUserInfo) {
+			const firstUserTargetMessage = [messages.result_target, parseUserInfoToMessage(secondUserInfo)].join('\n');
+			const secondUserTargetMessage = [messages.result_target, parseUserInfoToMessage(firstUserInfo)].join('\n');
+
+			ctx.telegram.sendMessage(firstUserInfo.privateChatId, firstUserTargetMessage, {
+				parse_mode: 'HTML',
+			});
+
+			ctx.telegram.sendMessage(secondUserInfo.privateChatId, secondUserTargetMessage, {
+				parse_mode: 'HTML',
+			});
+		}
+	});
+
+	if (rest) {
+		const allUsersInPairs = pairs.flat();
+		const randomUserFromPairs = allUsersInPairs.at(Math.floor(Math.random() * allUsersInPairs.length));
+
+		if (randomUserFromPairs) {
+			const restUserTargetMessage = [messages.result_target, parseUserInfoToMessage(randomUserFromPairs)].join('\n');
+			const randomUserFromPairsTargetMessage = [messages.result_target_with_rest, parseUserInfoToMessage(rest)].join('\n');
+
+			ctx.telegram.sendMessage(rest.privateChatId, restUserTargetMessage, {
+				parse_mode: 'HTML',
+			});
+
+			ctx.telegram.sendMessage(randomUserFromPairs.privateChatId, randomUserFromPairsTargetMessage, {
+				parse_mode: 'HTML',
+			});
+		}
+	}
 }

@@ -11,14 +11,12 @@ import {
 } from '../utils';
 import {
 	ScenarioType,
-	SceneContextWithUserInfo,
+	FillInfoSceneContext,
 	userInfoState,
 	InlineActions,
 	User,
 	isUserFullfield,
 } from '../types';
-
-type FillInfoSceneContext = Scenes.SceneContext<SceneContextWithUserInfo>;
 
 const fillInfoScene = new Scenes.BaseScene<FillInfoSceneContext>(ScenarioType.FILL_INFO_SCENE);
 

@@ -2,11 +2,9 @@ import { Scenes } from 'telegraf';
 import type { CallbackQuery, InlineKeyboardButton } from 'telegraf/types';
 
 import LocalDb from '../database/localDb';
-import { ScenarioType, RegisteredChats, UserParticipation, SceneContextWithChooseChatKeyboard } from '../types';
+import { ScenarioType, RegisteredChats, UserParticipation, WelcomeSceneContext } from '../types';
 import { messages, env } from '../config/variables';
 import { createRegisteredMembersDbFieldPath } from '../utils';
-
-type WelcomeSceneContext = Scenes.SceneContext<SceneContextWithChooseChatKeyboard>;
 
 const welcomeScene = new Scenes.BaseScene<WelcomeSceneContext>(ScenarioType.WELCOME_SCENE);
 

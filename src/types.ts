@@ -1,3 +1,4 @@
+import type { Scenes } from 'telegraf';
 import type { InlineKeyboardButton } from 'telegraf/types';
 import type { SceneSessionData } from "telegraf/typings/scenes";
 
@@ -14,6 +15,8 @@ export type User = Partial<{
 }>
 
 export type UserFromDb = Required<User>;
+
+export type PublicUserInfo = Omit<UserFromDb, 'id' | 'groupChatId' | 'privateChatId'>;
 
 export type UserParticipation = Readonly<{
 	userId: number;
@@ -44,10 +47,14 @@ export type SceneContextWithChooseChatKeyboard = SceneSessionData & {
 	chooseChatKeyboard?: InlineKeyboardButton[][];
 }
 
+export type WelcomeSceneContext = Scenes.SceneContext<SceneContextWithChooseChatKeyboard>;
+
 export type SceneContextWithUserInfo = SceneSessionData & {
 	stepsGenerator?: Generator<FillInfoStep>;
 	userInfo?: User;
 }
+
+export type FillInfoSceneContext = Scenes.SceneContext<SceneContextWithUserInfo>;
 
 // start -> 'Hello' + keyboard (available chats)
 // choose -> check -> isExist ? FillInfoScene : TryAgainScene
@@ -99,4 +106,14 @@ export const isUserFullfield = (user: User): user is Required<User> => {
 	}
 
 	return allSettled.every(isExist => isExist);
+};
+
+export function isObjKey<T extends object>(key: PropertyKey, obj: T): key is keyof T {
+	return key in obj;
+}
+
+export function assertNever(n: never): never;
+
+export function assertNever(n: never) {
+	throw new Error(`${n} was unreachable!`);
 }
