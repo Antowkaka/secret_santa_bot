@@ -1,7 +1,7 @@
 import type {InlineKeyboardButton } from 'telegraf/types';
 
 import { fillInfoSteps, messages } from './config/variables';
-import { FillInfoStep, UpdateUserInfoData } from './types';
+import { FillInfoStep, UpdateUserInfoData, UserFromDb, UserPairs } from './types';
 
 export function createAllMembersCountDbFieldPath(chatId: number): string {
 	return `/${chatId}_all_members_count`;
@@ -64,4 +64,34 @@ export function mapStepToUpdateData(step: FillInfoStep): UpdateUserInfoData {
 				last: true,
 			};
 	}
+}
+
+export function createPairs(users: UserFromDb[]): UserPairs {
+	const pairs: UserFromDb[][] = [];
+	let rest = undefined;
+
+	while (users.length) {
+		const pair = [];
+
+		while (pair.length !== 2) {
+			const randomUserIdx = Math.floor(Math.random() * users.length);
+			const pairUser = users.splice(randomUserIdx, 1)[0];
+
+			if (pairUser) {
+				if (users.length === 0 && pair.length === 0) {
+					rest = pairUser;
+					break;
+				} else {
+					pair.push(pairUser);
+				}
+			}
+		}
+
+		pair.length === 2 && pairs.push(pair);
+	}
+
+	return {
+		pairs,
+		rest
+	};
 }

@@ -13,6 +13,8 @@ export type User = Partial<{
 	novaPoshtaNo: string;
 }>
 
+export type UserFromDb = Required<User>;
+
 export type UserParticipation = Readonly<{
 	userId: number;
 	isParticipates: boolean;
@@ -21,6 +23,11 @@ export type UserParticipation = Readonly<{
 export type DbData = {
 	[key: string]: User[];
 }
+
+export type UserPairs = Readonly<{
+	pairs: UserFromDb[][];
+	rest: UserFromDb | undefined;
+}>;
 
 export enum InlineActions {
 	PollYes = 'poll_yes',
