@@ -5,7 +5,7 @@ import {
 	createParticipatedMembersDbFieldPath,
 }  from '../utils';
 import { env } from '../config/variables';
-import type { UserParticipation, UserFromDb } from '../types';
+import type { UserParticipation, UserFromDb, ChatDbEntity } from '../types';
 
 export default class LocalDbService {
 	private readonly _chatId: number;
@@ -26,19 +26,31 @@ export default class LocalDbService {
 	}
 
 	// common chat
-	async setChatToDb(title: string, usersCount: number): Promise<void> {
+	async setChat(title: string, usersCount: number): Promise<void> {
 		await LocalDb.push(`${env.DB_FIELD_REGISTERED_CHATS}[]`, { id: this._chatId, title });
 		await LocalDb.push(this._registeredMembersPath, []);
 		await LocalDb.push(this._chatMembersCountDbFieldPath, usersCount);
 		await LocalDb.push(this._participatedMembersDbFieldPath, []);
 	}
 
-	async deleteChatFromDb(): Promise<void> {
+	async addChatMessageId(messageId: number): Promise<void> {
+		const chatInxInDb = await LocalDb.getIndex(env.DB_FIELD_REGISTERED_CHATS, this._chatId);
+		await LocalDb.push(`${env.DB_FIELD_REGISTERED_CHATS}[${chatInxInDb}]/messages[]`, messageId);
+	}
+
+	async deleteChat(): Promise<void> {
 		const chatInxInDb = await LocalDb.getIndex(env.DB_FIELD_REGISTERED_CHATS, this._chatId);
 		await LocalDb.delete(`${env.DB_FIELD_REGISTERED_CHATS}[${chatInxInDb}]`);
 		await LocalDb.delete(this._registeredMembersPath);
 		await LocalDb.delete(this._chatMembersCountDbFieldPath);
 		await LocalDb.delete(this._participatedMembersDbFieldPath);
+	}
+
+	async getChat(chatId: number): Promise<ChatDbEntity | undefined> {
+		return LocalDb.find(
+			env.DB_FIELD_REGISTERED_CHATS,
+			(chat: ChatDbEntity) => chat.id === chatId,
+		);
 	}
 
 	async getChatUsersCount(): Promise<number> {
@@ -48,6 +60,10 @@ export default class LocalDbService {
 	// registered info methods
 	async getRegistrations(): Promise<UserFromDb[]> {
 		return LocalDb.getData(this._registeredMembersPath);
+	}
+
+	async getRegistrationsCount(): Promise<number> {
+		return LocalDb.count(this._registeredMembersPath);
 	}
 
 	async getUserInfo(userId: number): Promise<UserFromDb | undefined> {

@@ -16,6 +16,12 @@ export type User = Partial<{
 
 export type UserFromDb = Required<User>;
 
+export type ChatDbEntity = Readonly<{
+	id: number;
+	title: string;
+	messages: number[];
+}>;
+
 export type PublicUserInfo = Omit<UserFromDb, 'id' | 'groupChatId' | 'privateChatId'>;
 
 export type UserParticipation = Readonly<{
@@ -38,10 +44,7 @@ export enum InlineActions {
 	Register = 'register',
 }
 
-export type RegisteredChats = {
-	id: number;
-	title: string;
-}[]
+export type RegisteredChats = ChatDbEntity[];
 
 export type SceneContextWithChooseChatKeyboard = SceneSessionData & {
 	chooseChatKeyboard?: InlineKeyboardButton[][];

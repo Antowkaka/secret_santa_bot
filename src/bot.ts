@@ -11,15 +11,30 @@ import fillInfoScene from './scenes/fillInfoScene';
 
 const bot = new Telegraf<Scenes.SceneContext>(env.BOT_TOKEN);
 
+bot.telegram.setMyCommands(
+	[{ command: '/reset_session', description: 'Reset user session' }],
+	{ scope: { type: 'all_private_chats' }}
+);
+
+bot.telegram.setMyCommands(
+	[{ command: '/reset_chat', description: 'Remove chat from database' }],
+	{ scope: { type: 'all_chat_administrators' }}
+);
+
 const stage = new Scenes.Stage<Scenes.SceneContext>([welcomeScene, fillInfoScene]);
-stage.command('/exit', async ctx => {
+stage.command('/reset_session', async ctx => {
 	const userInfoFromCb = ctx.scene.state;
 
 	if (userInfoState(userInfoFromCb)) {
 		console.log('leaving...');
 
 		const db = new LocalDbService(userInfoFromCb.userGroupChatId);
-		await db.removeUserInfo(userInfoFromCb.userId);
+		const isExist = await db.getUserInfo(userInfoFromCb.userId);
+
+		if (isExist) {
+			await db.removeUserInfo(userInfoFromCb.userId);
+		}
+
 		ctx.scene.leave();
 	}
 });
@@ -28,7 +43,30 @@ bot.use(new LocalSession({ database: './src/database/local-sessin-db.json' }).mi
 bot.use(stage.middleware());
 bot.use(Telegraf.log());
 
-bot.command('/start', ctx => ctx.scene.enter(ScenarioType.WELCOME_SCENE));
+bot.command('/start', ctx => {
+	if (ctx.chat.type === 'private') {
+		ctx.scene.enter(ScenarioType.WELCOME_SCENE);
+	}
+});
+
+bot.command('/reset_chat', async (ctx) => {
+	const { id } = ctx.chat;
+	const db = new LocalDbService(id);
+	const chat = await db.getChat(id);
+
+	if (chat) {
+		const userSessionsCount = await db.getRegistrationsCount();
+
+		if (userSessionsCount === 0) {
+			// remove bot poll message from chat
+			chat.messages.forEach(messageId => ctx.telegram.deleteMessage(id, messageId));
+			// remove from local db
+			await db.deleteChat();
+			// send a message when admin reset chat
+			ctx.telegram.sendMessage(id, messages.chat_deleted_from_db);
+		}
+	}
+});
 
 bot.on('my_chat_member', async (ctx) => {
 	const { new_chat_member, old_chat_member, chat } = ctx.myChatMember;
@@ -45,10 +83,10 @@ bot.on('my_chat_member', async (ctx) => {
 			if (excludeBotCount < 2) {
 				ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_unavailable}`);
 			} else {
-				await localDbService.setChatToDb(chat.title, excludeBotCount);
+				await localDbService.setChat(chat.title, excludeBotCount);
 
 				// send poll for users (users count - bot)
-				ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
+				const chatPollMessage = await ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
 					reply_markup: {
 						inline_keyboard: [
 							[pollYes],
@@ -56,6 +94,8 @@ bot.on('my_chat_member', async (ctx) => {
 						]
 					}
 				});
+
+				await localDbService.addChatMessageId(chatPollMessage.message_id);
 			}
 		}
 
@@ -65,8 +105,6 @@ bot.on('my_chat_member', async (ctx) => {
 		) {
 			// send a message when bot lose an admin permissions
 			ctx.telegram.sendMessage(chat.id, messages.chat_goodbay_message);
-			// remove from local db
-			await localDbService.deleteChatFromDb();
 		}
 	}
 });
