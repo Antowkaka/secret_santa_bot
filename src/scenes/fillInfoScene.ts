@@ -83,10 +83,6 @@ fillInfoScene.action(InlineActions.Register, async ctx => {
 		} else {
 			await dbService.setUserInfo(userInfo);
 
-			ctx.reply(messages.step_annotation_end_registered, {
-				parse_mode: 'HTML',
-			});
-
 			const allRegisteredUsers = await dbService.getRegistrations();
 			const allChatMembers = await dbService.getChatUsersCount();
 
@@ -94,6 +90,10 @@ fillInfoScene.action(InlineActions.Register, async ctx => {
 
 			if (isAllRegistered) {
 				handleUsersRegistration(allRegisteredUsers, ctx);
+			} else {
+				ctx.reply(messages.step_annotation_end_registered, {
+					parse_mode: 'HTML',
+				});
 			}
 		}
 	}

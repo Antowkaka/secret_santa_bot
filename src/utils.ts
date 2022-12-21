@@ -131,7 +131,7 @@ export function parseUserInfoToMessage(userInfo: UserFromDb): string {
 			: ''
 	);
 
-	return messagesRows.filter(row => row !== '').join('\n');
+	return messagesRows.filter(row => row !== '').reverse().join('\n');
 }
 
 export function handleUsersRegistration(
