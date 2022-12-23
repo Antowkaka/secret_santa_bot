@@ -71,7 +71,7 @@ bot.command('/reset_chat', async (ctx) => {
 bot.on('my_chat_member', async (ctx) => {
 	const { new_chat_member, old_chat_member, chat } = ctx.myChatMember;
 
-	if (chat.type === 'group') {
+	if (chat.type === 'group' || chat.type === 'supergroup') {
 		const localDbService = new LocalDbService(chat.id);
 		if (new_chat_member.user.id === ctx.botInfo.id && new_chat_member.status === 'administrator') {
 			// send a message when bot get an admin permissions
@@ -79,6 +79,7 @@ bot.on('my_chat_member', async (ctx) => {
 
 			// set chat ID as database to local database
 			const chatCount = await ctx.telegram.getChatMembersCount(chat.id);
+			// TODO: find posibility to exclude all bots
 			const excludeBotCount = chatCount - 1;
 			if (excludeBotCount < 2) {
 				ctx.telegram.sendMessage(chat.id, `${messages.chat_poll_unavailable}`);
@@ -121,11 +122,18 @@ const pollHandler = async (
 		if (isUserExist) {
 			ctx.answerCbQuery(messages.registered_exist_notification);
 		} else {
+			const isParticipates = ctx.match[0] === InlineActions.PollYes;
 			// register user in db (as Secret Santa)
 			await dbService.setParticipation({
 				userId: from.id,
-				isParticipates: ctx.match[0] === InlineActions.PollYes,
+				isParticipates,
 			});
+
+			// exclude users which don`t want to play
+			if (!isParticipates) {
+				const currCount = await dbService.getChatUsersCount();
+				await dbService.updateChatUsersCount(currCount - 1);
+			}
 			// get user notified
 			ctx.answerCbQuery(messages.registered_notification);
 			// update title with registered users count

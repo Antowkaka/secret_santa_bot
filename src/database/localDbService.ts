@@ -57,6 +57,10 @@ export default class LocalDbService {
 		return LocalDb.getData(this._chatMembersCountDbFieldPath);
 	}
 
+	async updateChatUsersCount(usersCount: number): Promise<void> {
+		await LocalDb.push(this._chatMembersCountDbFieldPath, usersCount, true);
+	}
+
 	// registered info methods
 	async getRegistrations(): Promise<UserFromDb[]> {
 		return LocalDb.getData(this._registeredMembersPath);
