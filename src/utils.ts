@@ -1,16 +1,20 @@
 import type { NarrowedContext } from 'telegraf';
 import type {InlineKeyboardButton, Update, CallbackQuery } from 'telegraf/types';
+import crypto from 'crypto';
 
 import { fillInfoSteps, messages } from './config/variables';
 import {
 	FillInfoStep,
 	UpdateUserInfoData,
 	UserFromDb,
+	PairUser,
 	PublicUserInfo,
 	UserPairs,
+	PreparedUsersPairs,
 	FillInfoSceneContext,
 	assertNever,
 	isObjKey,
+	UserTempShufflingState,
 } from './types';
 
 export function createChatMembersCountDbFieldPath(chatId: number): string {
@@ -76,12 +80,12 @@ export function mapStepToUpdateData(step: FillInfoStep): UpdateUserInfoData {
 	}
 }
 
-export function createPairs(users: UserFromDb[]): UserPairs {
-	const pairs: UserFromDb[][] = [];
+export function createPreparedPairs(users: UserFromDb[]): UserPairs {
+	const pairs: PairUser<UserFromDb>[][] = [];
 	let rest = undefined;
 
 	while (users.length) {
-		const pair = [];
+		const pair: PairUser<UserFromDb>[] = [];
 
 		while (pair.length !== 2) {
 			const randomUserIdx = Math.floor(Math.random() * users.length);
@@ -92,7 +96,7 @@ export function createPairs(users: UserFromDb[]): UserPairs {
 					rest = pairUser;
 					break;
 				} else {
-					pair.push(pairUser);
+					pair.push({ pairId: crypto.randomUUID(), ...pairUser });
 				}
 			}
 		}
@@ -104,6 +108,33 @@ export function createPairs(users: UserFromDb[]): UserPairs {
 		pairs,
 		rest
 	};
+}
+
+export function shufflePreparedPairs(preparedPairs: PreparedUsersPairs): PreparedUsersPairs {
+	const pairs: PreparedUsersPairs = [];
+	const preparedUsers = preparedPairs.flat(2);
+	const santas = preparedUsers.filter(({ isSanta }) => isSanta);
+	const targets = preparedUsers.filter(({ isTarget }) => isTarget);
+
+	while (santas.length && targets.length) {
+		// get random santa & target
+		const randomSantaIdx = Math.floor(Math.random() * santas.length);
+		const randomTargetIdx = Math.floor(Math.random() * targets.length);
+		// take by index
+		const santaUser = santas.at(randomSantaIdx);
+		const targetUser = targets.at(randomTargetIdx);
+
+		// check: is there from prev pair ?
+		if (santaUser && targetUser && santaUser.pairId !== targetUser.pairId) {
+			pairs.push([santaUser, targetUser]);
+
+			// remove from all
+			santas.splice(randomSantaIdx, 1);
+			targets.splice(randomTargetIdx, 1);
+		}
+	}
+
+	return pairs;
 }
 
 export function mapDbFieldToMessageField(
@@ -122,8 +153,8 @@ export function mapDbFieldToMessageField(
 	}
 }
 
-export function parseUserInfoToMessage(userInfo: UserFromDb): string {
-	const { id, groupChatId, privateChatId, ...publicInfo } = userInfo;
+export function parseUserInfoToMessage(userInfo: PairUser<UserFromDb | UserTempShufflingState>): string {
+	const { id, groupChatId, privateChatId, pairId, ...publicInfo } = userInfo;
 
 	const messagesRows = Object.entries(publicInfo).map<string>(([key, value]) =>
 		isObjKey<PublicUserInfo>(key, publicInfo)
@@ -138,25 +169,74 @@ export function handleUsersRegistration(
 	users: UserFromDb[],
 	ctx: NarrowedContext<FillInfoSceneContext & {match: RegExpExecArray;}, Update.CallbackQueryUpdate<CallbackQuery>>
 ): void {
-	const { pairs, rest } = createPairs(users);
+	const { pairs, rest } = createPreparedPairs(users);
+	const preparedPairs: PreparedUsersPairs = [];
 
+	// first randomizing step (raw users randomizer)
 	pairs.forEach(pair => {
 		const firstUserInfo = pair[0];
 		const secondUserInfo = pair[1];
 
 		if (firstUserInfo && secondUserInfo) {
-			const firstUserTargetMessage = [messages.result_target, parseUserInfoToMessage(secondUserInfo)].join('\n');
-			const secondUserTargetMessage = [messages.result_target, parseUserInfoToMessage(firstUserInfo)].join('\n');
+			// second user - 'target', first - 'santa'
+			ctx.telegram.sendMessage(
+				firstUserInfo.privateChatId,
+				[messages.result_target, parseUserInfoToMessage(secondUserInfo)].join('\n'),
+				{ parse_mode: 'HTML' }
+			);
 
-			ctx.telegram.sendMessage(firstUserInfo.privateChatId, firstUserTargetMessage, {
-				parse_mode: 'HTML',
-			});
+			if (pairs.length === 1) {
+				// first user - 'target', second - 'santa'
+				ctx.telegram.sendMessage(
+					secondUserInfo.privateChatId,
+					[messages.result_target, parseUserInfoToMessage(firstUserInfo)].join('\n'), 
+					{ parse_mode: 'HTML' }
+				);
+			}
 
-			ctx.telegram.sendMessage(secondUserInfo.privateChatId, secondUserTargetMessage, {
-				parse_mode: 'HTML',
-			});
+			preparedPairs.push([
+				{
+					isSanta: true,
+					isTarget: false,
+					...firstUserInfo,
+				},
+				{
+					isSanta: false,
+					isTarget: true,
+					...secondUserInfo,
+				},
+			]);
 		}
 	});
+
+	// second randomizing step with more then 1 pairs (prepared users)
+	if (pairs.length > 1) {
+		const shuffledPairs = shufflePreparedPairs(preparedPairs);
+		shuffledPairs.forEach(pair => {
+			const firstUserInfo = pair[0];
+			const secondUserInfo = pair[1];
+
+			if (firstUserInfo && secondUserInfo) {
+				if (firstUserInfo.isTarget) {
+					// second user - 'target', first - 'santa'
+					ctx.telegram.sendMessage(
+						firstUserInfo.privateChatId,
+						[messages.result_target, parseUserInfoToMessage(secondUserInfo)].join('\n'),
+						{ parse_mode: 'HTML' }
+					);
+				}
+
+				if (secondUserInfo.isTarget) {
+					// first user - 'target', second - 'santa'
+					ctx.telegram.sendMessage(
+						secondUserInfo.privateChatId,
+						[messages.result_target, parseUserInfoToMessage(firstUserInfo)].join('\n'), 
+						{ parse_mode: 'HTML' }
+					);
+				}
+			}
+		})
+	}
 
 	if (rest) {
 		const allUsersInPairs = pairs.flat();
@@ -164,7 +244,7 @@ export function handleUsersRegistration(
 
 		if (randomUserFromPairs) {
 			const restUserTargetMessage = [messages.result_target, parseUserInfoToMessage(randomUserFromPairs)].join('\n');
-			const randomUserFromPairsTargetMessage = [messages.result_target_with_rest, parseUserInfoToMessage(rest)].join('\n');
+			const randomUserFromPairsTargetMessage = [messages.result_target_with_rest, parseUserInfoToMessage({ pairId: '', ...rest })].join('\n');
 
 			ctx.telegram.sendMessage(rest.privateChatId, restUserTargetMessage, {
 				parse_mode: 'HTML',

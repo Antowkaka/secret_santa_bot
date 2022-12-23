@@ -33,10 +33,21 @@ export type DbData = {
 	[key: string]: User[];
 }
 
+export type PairUser<U extends UserFromDb> = U & {
+	pairId: string;
+};
+
+export type UserTempShufflingState = UserFromDb & {
+	isSanta: boolean;
+	isTarget: boolean;
+}
+
 export type UserPairs = Readonly<{
-	pairs: UserFromDb[][];
+	pairs: PairUser<UserFromDb>[][];
 	rest: UserFromDb | undefined;
 }>;
+
+export type PreparedUsersPairs = PairUser<UserTempShufflingState>[][];
 
 export enum InlineActions {
 	PollYes = 'poll_yes',
