@@ -17,7 +17,10 @@ bot.telegram.setMyCommands(
 );
 
 bot.telegram.setMyCommands(
-	[{ command: '/reset_chat', description: 'Remove chat from database' }],
+	[
+		{ command: '/reset_chat', description: 'Remove chat from database' },
+		{ command: '/register_again', description: 'Register chat to database' },
+	],
 	{ scope: { type: 'all_chat_administrators' }}
 );
 
@@ -46,6 +49,47 @@ bot.use(Telegraf.log());
 bot.command('/start', ctx => {
 	if (ctx.chat.type === 'private') {
 		ctx.scene.enter(ScenarioType.WELCOME_SCENE);
+	}
+});
+
+bot.command('/register_again', async (ctx) => {
+	const { id } = ctx.chat;
+	const db = new LocalDbService(id);
+	const chat = await db.getChat(id);
+
+	if (chat) {
+		// send a message when admin try to register already registered chat
+		ctx.telegram.sendMessage(id, messages.chat_already_registered_to_db);
+	} else {
+		const admins = await ctx.getChatAdministrators();
+		const isBotAdmin = admins.find(admin => admin.user.id === ctx.botInfo.id);
+
+		if (isBotAdmin && (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup')) {
+			// set chat ID as database to local database
+			const chatCount = await ctx.telegram.getChatMembersCount(id);
+			// TODO: find posibility to exclude all bots
+			const excludeBotCount = chatCount - 1;
+			if (excludeBotCount < 2) {
+				ctx.telegram.sendMessage(id, `${messages.chat_poll_unavailable}`);
+			} else {
+				await db.setChat(ctx.chat.title, excludeBotCount);
+
+				// send poll for users (users count - bot)
+				const chatPollMessage = await ctx.telegram.sendMessage(id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
+					reply_markup: {
+						inline_keyboard: [
+							[pollYes],
+							[pollNo],
+						]
+					}
+				});
+
+				await db.addChatMessageId(chatPollMessage.message_id);
+			}
+		} else {
+			// send a message when admin try to register chat without admin rights
+			ctx.telegram.sendMessage(id, messages.chat_is_not_admin);
+		}
 	}
 });
 
