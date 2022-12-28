@@ -154,7 +154,12 @@ export function mapDbFieldToMessageField(
 }
 
 export function parseUserInfoToMessage(userInfo: PairUser<UserFromDb | UserTempShufflingState>): string {
-	const { id, groupChatId, privateChatId, pairId, ...publicInfo } = userInfo;
+	const publicInfo: PublicUserInfo = {
+		fullName: userInfo.fullName,
+		number: userInfo.number,
+		city: userInfo.city,
+		novaPoshtaNo: userInfo.novaPoshtaNo,
+	};
 
 	const messagesRows = Object.entries(publicInfo).map<string>(([key, value]) =>
 		isObjKey<PublicUserInfo>(key, publicInfo)

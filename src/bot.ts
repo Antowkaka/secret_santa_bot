@@ -12,7 +12,10 @@ import fillInfoScene from './scenes/fillInfoScene';
 const bot = new Telegraf<Scenes.SceneContext>(env.BOT_TOKEN);
 
 bot.telegram.setMyCommands(
-	[{ command: '/reset_session', description: 'Reset user session' }],
+	[
+		{ command: '/start', description: 'Try again' },
+		{ command: '/reset_session', description: 'Reset user session' },
+	],
 	{ scope: { type: 'all_private_chats' }}
 );
 
@@ -61,34 +64,36 @@ bot.command('/register_again', async (ctx) => {
 		// send a message when admin try to register already registered chat
 		ctx.telegram.sendMessage(id, messages.chat_already_registered_to_db);
 	} else {
-		const admins = await ctx.getChatAdministrators();
-		const isBotAdmin = admins.find(admin => admin.user.id === ctx.botInfo.id);
-
-		if (isBotAdmin && (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup')) {
-			// set chat ID as database to local database
-			const chatCount = await ctx.telegram.getChatMembersCount(id);
-			// TODO: find posibility to exclude all bots
-			const excludeBotCount = chatCount - 1;
-			if (excludeBotCount < 2) {
-				ctx.telegram.sendMessage(id, `${messages.chat_poll_unavailable}`);
+		if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
+			const admins = await ctx.getChatAdministrators();
+			const isBotAdmin = admins.find(admin => admin.user.id === ctx.botInfo.id);
+	
+			if (isBotAdmin) {
+				// set chat ID as database to local database
+				const chatCount = await ctx.telegram.getChatMembersCount(id);
+				// TODO: find posibility to exclude all bots
+				const excludeBotCount = chatCount - 1;
+				if (excludeBotCount < 2) {
+					ctx.telegram.sendMessage(id, `${messages.chat_poll_unavailable}`);
+				} else {
+					await db.setChat(ctx.chat.title, excludeBotCount);
+	
+					// send poll for users (users count - bot)
+					const chatPollMessage = await ctx.telegram.sendMessage(id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
+						reply_markup: {
+							inline_keyboard: [
+								[pollYes],
+								[pollNo],
+							]
+						}
+					});
+	
+					await db.addChatMessageId(chatPollMessage.message_id);
+				}
 			} else {
-				await db.setChat(ctx.chat.title, excludeBotCount);
-
-				// send poll for users (users count - bot)
-				const chatPollMessage = await ctx.telegram.sendMessage(id, `${messages.chat_poll_title} (0/${excludeBotCount})`, {
-					reply_markup: {
-						inline_keyboard: [
-							[pollYes],
-							[pollNo],
-						]
-					}
-				});
-
-				await db.addChatMessageId(chatPollMessage.message_id);
+				// send a message when admin try to register chat without admin rights
+				ctx.telegram.sendMessage(id, messages.chat_is_not_admin);
 			}
-		} else {
-			// send a message when admin try to register chat without admin rights
-			ctx.telegram.sendMessage(id, messages.chat_is_not_admin);
 		}
 	}
 });
